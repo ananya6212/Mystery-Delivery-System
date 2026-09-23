@@ -1,2 +1,160 @@
-# Mystery-Delivery-System
-A Python logistics simulator for a fictional delivery company, FastBox. It reads warehouses, delivery agents and packages from a JSON file, assigns every package to the nearest agent, simulates one day of deliveries, and writes a report with per-agent distance, efficiency and the best-performing agent.
+# FastBox – Mystery Delivery System
+
+A Python logistics simulator for a fictional delivery company, **FastBox**. It reads warehouses, delivery agents and packages from a JSON file, assigns every package to the nearest agent, simulates one day of deliveries, and writes a report with per-agent distance, efficiency and the best-performing agent.
+
+---
+
+## Features
+
+- Reads and validates a JSON input file (warehouses, agents, packages)
+- Euclidean distance calculation
+- Nearest-agent assignment with deterministic tie-breaking
+- Stateful simulation: an agent's position updates after every delivery
+- Per-agent report: packages delivered, total distance, efficiency
+- Overall summary (total / delivered packages, total and average distance)
+- Command-line input/output paths
+- Clear error messages for missing files, invalid JSON and bad data
+
+---
+
+## Requirements
+
+- Python 3.8+
+- No external libraries (only `json`, `math`, `sys`)
+
+---
+
+## Project Structure
+
+```
+.
+├── main.py              # Simulator source code
+├── data.json            # Default input file
+├── report.json          # Generated output (created on run)
+├── test_case_1..10.json # Extra test inputs
+└── README.md
+```
+
+---
+
+## Usage
+
+```bash
+# Default: reads data.json, writes report.json
+python main.py
+
+# Custom input and output
+python main.py test_case_3.json report_3.json
+```
+
+---
+
+## Input Format
+
+```json
+{
+  "warehouses": { "W1": [0, 0], "W2": [50, 75], "W3": [100, 25] },
+  "agents":     { "A1": [5, 5], "A2": [60, 60], "A3": [95, 30] },
+  "packages": [
+    { "id": "P1", "warehouse": "W1", "destination": [30, 40] },
+    { "id": "P2", "warehouse": "W2", "destination": [70, 90] }
+  ]
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `warehouses` | Object mapping warehouse ID to `[x, y]` |
+| `agents` | Object mapping agent ID to starting `[x, y]` |
+| `packages` | List of packages with `id`, source `warehouse`, and `destination` `[x, y]` |
+
+> Inputs that use the alternative list-of-objects schema (`{"id": ..., "location": ...}` and `warehouse_id`) are converted by `normalize_input()` before processing.
+
+---
+
+## How It Works
+
+1. **Parse and validate** – required keys exist, types are correct, and every package references a real warehouse and has a destination.
+2. **Assign** – for each package (in file order), pick the agent whose *current* location is closest to the package's warehouse.
+   - Tie-break 1: agent with fewer packages so far.
+   - Tie-break 2: alphabetically smaller agent ID.
+3. **Simulate** – the agent travels `current location → warehouse → destination`. The distance is added to their total and their location becomes the destination.
+4. **Report** – efficiency is calculated and the best agent is chosen.
+
+### Formulas
+
+```
+distance(a, b) = sqrt((x2 - x1)^2 + (y2 - y1)^2)
+
+package distance = dist(agent, warehouse) + dist(warehouse, destination)
+
+efficiency = total_distance / packages_delivered      (lower is better)
+```
+
+**Best agent** = the agent with the lowest efficiency among agents who delivered at least one package. Idle agents are excluded, so an agent with zero deliveries can never win.
+
+---
+
+## Output Format
+
+```json
+{
+    "A1": { "packages_delivered": 2, "total_distance": 121.21, "efficiency": 60.61 },
+    "A2": { "packages_delivered": 2, "total_distance": 79.21,  "efficiency": 39.6 },
+    "A3": { "packages_delivered": 1, "total_distance": 14.14,  "efficiency": 14.14 },
+    "best_agent": "A3",
+    "summary": {
+        "total_packages": 5,
+        "delivered_packages": 5,
+        "total_distance": 214.56,
+        "average_distance": 42.91
+    }
+}
+```
+
+`summary.delivered_packages` always equals `summary.total_packages`, which satisfies the requirement that all packages are delivered.
+
+---
+
+## Design Decisions
+
+- **Stateful agent locations.** The agent's position updates after each delivery, which is more realistic than always measuring from the starting point. This spreads work across agents and, in several tests, lowers total distance.
+- **Deterministic results.** Ties are broken by rule, not randomness, so the same input always produces the same report.
+- **Greedy assignment.** Each package is assigned in order to the nearest agent. This is simple and fast, but not globally optimal, and it does not balance workload (some agents can remain idle).
+- **Efficiency = average distance per package.** Lower is better, matching the assignment's sample output (e.g. 85.32 / 2 = 42.66).
+
+---
+
+## Testing
+
+Run every test file and confirm the counts add up:
+
+```bash
+for f in test_case_*.json; do python main.py "$f" "report_${f}"; done
+```
+
+Verified on the assignment's base data and `test_case_1` to `test_case_10`: every package is delivered exactly once, and per-agent counts sum to the total number of packages.
+
+---
+
+## Error Handling
+
+| Situation | Message |
+|-----------|---------|
+| Input file not found | `Error: Input file '...' was not found.` |
+| Malformed JSON | `Error: '...' contains invalid JSON.` |
+| Missing key / bad type / unknown warehouse | `Validation Error: ...` |
+
+---
+
+## Limitations and Possible Extensions
+
+- Packages are processed in file order; no route optimisation (e.g. batching same-warehouse packages).
+- No workload balancing across agents.
+- Bonus ideas: random delivery delays (seeded `random`), ASCII route visualisation, an agent joining mid-day, and exporting the top performer to CSV.
+
+---
+
+## Author
+
+Ananya Sharma – Python Assignment: Mystery Delivery System
